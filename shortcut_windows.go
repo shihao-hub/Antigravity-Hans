@@ -63,14 +63,26 @@ func CreateChineseShortcut(cfg AppConfig) error {
 	// 目标快捷方式的保存路径，默认放在当前用户桌面
 	targetLnkPath := filepath.Join(desktopDir, newLnkName)
 
+	// 快捷方式目标与参数：优先指向同目录 GUI 壳（无控制台子系统，双击不闪现终端；
+	// --start 立即启动汉化、--hidden 静默到托盘）；找不到 GUI 壳时回退原控制台 CLI。
+	isIDE := strings.Contains(strings.ToLower(cfg.Name), "ide")
+	lnkTarget := selfExeAbs
+	lnkArgs := "--app --nogui"
+	if isIDE {
+		lnkArgs = "--ide --nogui"
+	}
+	if guiExe := findGuiExe(selfDir); guiExe != "" {
+		lnkTarget = guiExe
+		if isIDE {
+			lnkArgs = "--ide --start --hidden"
+		} else {
+			lnkArgs = "--app --start --hidden"
+		}
+	}
+
 	var psScript string
 	if foundOldLnk != "" {
 		// 复制原快捷方式，并修改 Target 和 Args，保留 IconLocation
-		arg := "--app --nogui"
-		if strings.Contains(strings.ToLower(cfg.Name), "ide") {
-			arg = "--ide --nogui"
-		}
-
 		psScript = fmt.Sprintf(`
 $sh = New-Object -ComObject WScript.Shell
 $oldLnk = $sh.CreateShortcut(%q)
@@ -92,15 +104,11 @@ if ($oldLnk.IconLocation -and $oldLnk.IconLocation -like "*.ico*") {
     $newLnk.IconLocation = %q + ",0"
 }
 $newLnk.Save()
-`, foundOldLnk, targetLnkPath, selfExeAbs, arg, selfDir, targetExe)
+`, foundOldLnk, targetLnkPath, lnkTarget, lnkArgs, selfDir, targetExe)
 	} else {
 		// 如果找不到原快捷方式，直接创建一个新的
 		if targetExe == "" {
 			return fmt.Errorf("找不到 %s 的安装路径，无法创建快捷方式", cfg.Name)
-		}
-		arg := "--app --nogui"
-		if strings.Contains(strings.ToLower(cfg.Name), "ide") {
-			arg = "--ide --nogui"
 		}
 		psScript = fmt.Sprintf(`
 $sh = New-Object -ComObject WScript.Shell
@@ -110,7 +118,7 @@ $newLnk.Arguments = %q
 $newLnk.WorkingDirectory = %q
 $newLnk.IconLocation = %q + ",0"
 $newLnk.Save()
-`, targetLnkPath, selfExeAbs, arg, selfDir, targetExe)
+`, targetLnkPath, lnkTarget, lnkArgs, selfDir, targetExe)
 	}
 
 	// 执行 PowerShell 脚本
@@ -122,6 +130,22 @@ $newLnk.Save()
 
 	fmt.Printf("[成功] 已在桌面创建快捷方式: %s\n", targetLnkPath)
 	return nil
+}
+
+// findGuiExe 在指定目录查找 GUI 壳可执行文件。
+// 优先本地产物名（build-gui.py 输出），其次发布产物名（GitHub Release 资产）。
+func findGuiExe(dir string) string {
+	candidates := []string{
+		"antigravity-hans-gui-windows-amd64.exe",
+		"antigravity-hans-gui.exe",
+	}
+	for _, name := range candidates {
+		p := filepath.Join(dir, name)
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
 }
 
 func getDesktopPath() string {

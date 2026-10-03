@@ -1,23 +1,30 @@
 name: Build & Release
 
+# 发布流程（tag 即 release）：
+# 1. 更新 VERSION 文件并提交
+# 2. 打 tag（与 VERSION 一致，如 v0.4.4）并推送：git tag v0.4.4 && git push origin v0.4.4
+# 3. 本工作流自动构建 CLI（三平台）与 Windows GUI 并发布到 GitHub Release
 on:
   push:
-    branches:
-      - main
-      - master
-    paths:
-      - VERSION
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    name: 编译并发布
+  build-cli:
+    name: 编译 CLI（三平台）
     runs-on: ubuntu-latest
 
     steps:
+      - name: 校验触发来源
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          echo "::error::该工作流仅支持 v* tag 发布；请更新 VERSION 后打 tag 再推送"
+          exit 1
+
       - name: 检出代码
         uses: actions/checkout@v4
 
@@ -26,7 +33,7 @@ jobs:
         run: |
           VERSION=$(cat VERSION | tr -d '[:space:]')
           echo "tag=${VERSION}" >> $GITHUB_OUTPUT
-          echo "版本号: ${VERSION}"
+          echo "tag=${{ github.ref_name }} / VERSION 文件=${VERSION}"
 
       - name: 配置 Go 环境
         uses: actions/setup-go@v5
@@ -61,36 +68,117 @@ jobs:
           go build -ldflags="-s -w -X main.Version=${{ steps.version.outputs.tag }}" \
             -o dist/antigravity-hans-windows-amd64.exe .
 
-      - name: 查看产物
+      - name: 查看 CLI 产物
+        run: ls -lh dist/
+
+      - name: 上传 CLI 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-artifacts
+          path: |
+            dist/antigravity-hans-macos-arm64
+            dist/antigravity-hans-macos-amd64
+            dist/antigravity-hans-windows-amd64.exe
+
+  build-gui:
+    name: 编译 Windows GUI（Fyne）
+    runs-on: windows-latest
+
+    steps:
+      - name: 校验触发来源
+        if: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+        shell: pwsh
+        run: |
+          Write-Error "该工作流仅支持 v* tag 发布；请更新 VERSION 后打 tag 再推送"
+          exit 1
+
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 配置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: 安装 MSYS2 MinGW64（Fyne CGO 编译依赖）
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: false
+          install: mingw-w64-x86_64-gcc
+
+      - name: 编译 Windows GUI（release 模式）
+        shell: msys2 {0}
+        run: |
+          mkdir -p dist
+          go build -tags gui -trimpath -buildvcs=false \
+            -ldflags "-s -w -H windowsgui -X main.Version=${{ github.ref_name }} -X main.ReleaseMode=release" \
+            -o dist/antigravity-hans-gui-windows-amd64.exe .
+
+      - name: 查看 GUI 产物
+        shell: msys2 {0}
+        run: ls -lh dist/
+
+      - name: 上传 GUI 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: gui-artifacts
+          path: dist/antigravity-hans-gui-windows-amd64.exe
+
+  release:
+    name: 发布到 GitHub Release
+    runs-on: ubuntu-latest
+    needs:
+      - build-cli
+      - build-gui
+
+    steps:
+      - name: 下载全部产物
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: 查看全部产物
         run: ls -lh dist/
 
       - name: 发布到 GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          name: "Antigravity-Hans ${{ steps.version.outputs.tag }}"
+          tag_name: ${{ github.ref_name }}
+          name: "Antigravity-Hans ${{ github.ref_name }}"
           body: |
-            ## Antigravity-Hans ${{ steps.version.outputs.tag }}
+            ## Antigravity-Hans ${{ github.ref_name }}
 
             ### 下载
 
             | 平台 | 文件 |
             |------|------|
-            | Windows x64 | `antigravity-hans-windows-amd64.exe` |
+            | Windows x64（GUI，推荐） | `antigravity-hans-gui-windows-amd64.exe` |
+            | Windows x64（CLI） | `antigravity-hans-windows-amd64.exe` |
             | macOS Apple Silicon | `antigravity-hans-macos-arm64` |
             | macOS Intel | `antigravity-hans-macos-amd64` |
+
+            ### Windows GUI 说明
+
+            - 双击即开，无终端窗口；主页面一键启动 Antigravity / IDE 动态汉化。
+            - 系统托盘：显示主窗口 / 打开 exe 所在目录 / 开机自启动（仅正式版可用）/ 退出。
+            - 关闭主窗口仅隐藏到托盘；退出请使用托盘菜单。
+            - 同一目录放置 CLI exe 后，用 `antigravity-hans.exe --shortcut` 生成的快捷方式会自动指向 GUI（双击无终端闪现）。
 
             ### macOS 使用说明
 
             ```bash
-            chmod +x antigravity-hans-macos-arm64
+            chmod +x antigravity-hans-macos-*
             ./antigravity-hans-macos-arm64
             ```
 
             > 若提示"无法验证开发者"，请前往「系统设置 → 隐私与安全性」点击「仍要打开」。
           files: |
+            dist/antigravity-hans-gui-windows-amd64.exe
+            dist/antigravity-hans-windows-amd64.exe
             dist/antigravity-hans-macos-arm64
             dist/antigravity-hans-macos-amd64
-            dist/antigravity-hans-windows-amd64.exe
           draft: false
           prerelease: false
