@@ -47,7 +47,9 @@ def git_output(args: list[str]) -> str | None:
     return r.stdout.strip()
 
 
-def detect_release(force_release: bool) -> tuple[bool, str]:
+def detect_release(force_release: bool, force_dev: bool = False) -> tuple[bool, str]:
+    if force_dev:
+        return False, "强制开发版（--dev）"
     if force_release:
         return True, "强制 release（--force-release）"
     tag = git_output(["describe", "--tags", "--exact-match", "HEAD"])
@@ -76,6 +78,7 @@ def ensure_icon() -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="编译 Antigravity-Hans GUI（Windows 壳）")
+    parser.add_argument("--dev", action="store_true", help="强制按 dev 开发版构建（产物自动带 -dev 后缀）")
     parser.add_argument("--force-release", action="store_true", help="强制按 release 构建（本地验证开机自启用）")
     parser.add_argument("--show-console", action="store_true", help="保留控制台窗口（调试用，默认 -H windowsgui）")
     args = parser.parse_args()
@@ -92,7 +95,7 @@ def main() -> int:
                 raise RuntimeError("非 Windows 主机构建需 mingw-w64（提供 x86_64-w64-mingw32-gcc）")
             env["CC"] = cc
 
-        release, reason = detect_release(args.force_release)
+        release, reason = detect_release(args.force_release, args.dev)
         mode = "release" if release else "dev"
 
         version = ""
