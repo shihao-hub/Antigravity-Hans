@@ -21,7 +21,6 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DIST_DIR = PROJECT_ROOT / "dist"
-OUT_NAME = "antigravity-hans-gui-windows-amd64.exe"
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
@@ -61,9 +60,9 @@ def detect_release(force_release: bool) -> tuple[bool, str]:
 
 def ensure_icon() -> None:
     syso = PROJECT_ROOT / "rsrc_windows_amd64.syso"
-    if syso.exists():
-        return
     ico = PROJECT_ROOT / "icon.ico"
+    if syso.exists() and ico.exists() and syso.stat().st_mtime >= ico.stat().st_mtime:
+        return
     if not ico.exists():
         print("[警告] 未找到 icon.ico 与 rsrc_windows_amd64.syso，产物将不带图标")
         return
@@ -112,7 +111,8 @@ def main() -> int:
         ensure_icon()
 
         DIST_DIR.mkdir(parents=True, exist_ok=True)
-        out_exe = DIST_DIR / OUT_NAME
+        out_name = "antigravity-hans-gui-windows-amd64.exe" if release else "antigravity-hans-gui-dev-windows-amd64.exe"
+        out_exe = DIST_DIR / out_name
 
         gui_flag = "" if args.show_console else "-H windowsgui"
         ldflags = f"{gui_flag} -s -w -X main.Version={version}".strip()

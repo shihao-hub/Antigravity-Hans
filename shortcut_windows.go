@@ -63,21 +63,17 @@ func CreateChineseShortcut(cfg AppConfig) error {
 	// 目标快捷方式的保存路径，默认放在当前用户桌面
 	targetLnkPath := filepath.Join(desktopDir, newLnkName)
 
-	// 快捷方式目标与参数：优先指向同目录 GUI 壳（无控制台子系统，双击不闪现终端；
-	// --start 立即启动汉化、--hidden 静默到托盘）；找不到 GUI 壳时回退原控制台 CLI。
+	// 快捷方式目标与参数：对于 Antigravity（普通版），优先指向同目录 GUI 壳
+	// （无控制台子系统，双击不闪现终端；--start 立即启动汉化、--hidden 静默到托盘）；
+	// IDE 或找不到 GUI 壳时保持原控制台 CLI 行为。
 	isIDE := strings.Contains(strings.ToLower(cfg.Name), "ide")
 	lnkTarget := selfExeAbs
 	lnkArgs := "--app --nogui"
 	if isIDE {
 		lnkArgs = "--ide --nogui"
-	}
-	if guiExe := findGuiExe(selfDir); guiExe != "" {
+	} else if guiExe := findGuiExe(selfDir); guiExe != "" {
 		lnkTarget = guiExe
-		if isIDE {
-			lnkArgs = "--ide --start --hidden"
-		} else {
-			lnkArgs = "--app --start --hidden"
-		}
+		lnkArgs = "--start --hidden"
 	}
 
 	var psScript string
@@ -138,6 +134,8 @@ func findGuiExe(dir string) string {
 	candidates := []string{
 		"antigravity-hans-gui-windows-amd64.exe",
 		"antigravity-hans-gui.exe",
+		"antigravity-hans-gui-dev-windows-amd64.exe",
+		"antigravity-hans-gui-windows-amd64-dev.exe",
 	}
 	for _, name := range candidates {
 		p := filepath.Join(dir, name)

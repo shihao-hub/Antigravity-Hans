@@ -7,6 +7,7 @@
 package main
 
 import (
+	_ "embed"
 	"os"
 	"sync"
 	"unsafe"
@@ -17,6 +18,11 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"golang.org/x/sys/windows"
 )
+
+// appIconPNG 窗口与应用图标（256×256 PNG，构建期嵌入）。
+//
+//go:embed gui_assets/appicon.png
+var appIconPNG []byte
 
 // Version 与 ReleaseMode 由构建脚本通过
 // -ldflags "-X main.Version=... -X main.ReleaseMode=..." 注入；
@@ -31,21 +37,18 @@ func isReleaseBuild() bool { return ReleaseMode == "release" }
 
 // guiOptions GUI 启动参数（由快捷方式/开机自启传入）。
 type guiOptions struct {
-	Hidden bool      // --hidden：静默启动，仅托盘不弹主窗（开机自启使用）
-	Start  bool      // --start：启动后立即开始汉化监视（一键汉化快捷方式使用）
-	Target AppConfig // --app / --ide：监视目标，默认 Antigravity
+	Hidden bool // --hidden：静默启动，仅托盘不弹主窗（开机自启使用）
+	Start  bool // --start：启动后立即开始汉化监视（一键汉化快捷方式使用）
 }
 
 func parseGUIOptions(args []string) guiOptions {
-	opts := guiOptions{Target: AppNormal}
+	opts := guiOptions{}
 	for _, a := range args {
 		switch a {
 		case "--hidden":
 			opts.Hidden = true
 		case "--start":
 			opts.Start = true
-		case "--ide", "-ide":
-			opts.Target = AppIDE
 		}
 	}
 	return opts
@@ -57,7 +60,6 @@ type guiApp struct {
 	win    fyne.Window
 	status *widget.Label
 	btnApp *widget.Button
-	btnIDE *widget.Button
 
 	mu         sync.Mutex
 	monitoring bool
@@ -73,8 +75,14 @@ func main() {
 
 	g := &guiApp{}
 	g.app = app.NewWithID("antigravity-hans-gui")
+
+	// 设置应用与窗口图标（消除无图标问题，展示专属品牌标识）
+	iconRes := fyne.NewStaticResource("appicon.png", appIconPNG)
+	g.app.SetIcon(iconRes)
+
 	g.win = g.app.NewWindow("Antigravity 汉化工具")
-	g.win.Resize(fyne.NewSize(520, 360))
+	g.win.SetIcon(iconRes)
+	g.win.Resize(fyne.NewSize(500, 320))
 	g.win.SetCloseIntercept(func() { g.win.Hide() }) // 关窗仅隐藏到托盘，退出走托盘菜单
 	g.win.SetContent(g.buildPage())
 
@@ -82,7 +90,7 @@ func main() {
 
 	g.app.Lifecycle().SetOnStarted(func() {
 		if opts.Start {
-			g.startMonitor(opts.Target)
+			g.startMonitor()
 		}
 	})
 
@@ -96,11 +104,10 @@ func main() {
 func (g *guiApp) buildPage() fyne.CanvasObject {
 	title := widget.NewLabelWithStyle("Antigravity 汉化工具", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
 	version := widget.NewLabelWithStyle("版本 "+Version, fyne.TextAlignCenter, fyne.TextStyle{})
-	hint := widget.NewLabel("点击下方按钮启动对应应用的动态汉化（CDP 注入，不修改本地文件）。\n关闭窗口后程序驻留系统托盘继续运行。")
+	hint := widget.NewLabel("点击下方按钮启动 Antigravity 动态汉化（CDP 注入，不修改本地文件）。\n关闭窗口后程序驻留系统托盘继续运行。")
 	hint.Wrapping = fyne.TextWrapWord
 
-	g.btnApp = widget.NewButton("启动 Antigravity 汉化", func() { g.startMonitor(AppNormal) })
-	g.btnIDE = widget.NewButton("启动 Antigravity IDE 汉化", func() { g.startMonitor(AppIDE) })
+	g.btnApp = widget.NewButton("启动 Antigravity 汉化", func() { g.startMonitor() })
 
 	g.status = widget.NewLabel("就绪")
 	g.status.Wrapping = fyne.TextWrapWord
@@ -111,14 +118,13 @@ func (g *guiApp) buildPage() fyne.CanvasObject {
 		widget.NewSeparator(),
 		hint,
 		g.btnApp,
-		g.btnIDE,
 		widget.NewSeparator(),
 		g.status,
 	))
 }
 
 // startMonitor 在后台启动汉化监视；同一时间只允许一个监视任务。
-func (g *guiApp) startMonitor(cfg AppConfig) {
+func (g *guiApp) startMonitor() {
 	g.mu.Lock()
 	if g.monitoring {
 		g.mu.Unlock()
@@ -127,11 +133,11 @@ func (g *guiApp) startMonitor(cfg AppConfig) {
 	g.monitoring = true
 	g.mu.Unlock()
 
-	g.setBusy(true, "正在启动 "+cfg.Name+" 动态汉化...")
+	g.setBusy(true, "正在启动 Antigravity 动态汉化...")
 
 	overlaySource := LoadOverlaySource()
 	go func() {
-		Run(cfg, overlaySource) // 阻塞至监视结束（目标退出或启动失败）
+		Run(AppNormal, overlaySource) // 阻塞至监视结束（目标退出或启动失败）
 		g.mu.Lock()
 		g.monitoring = false
 		g.mu.Unlock()
@@ -142,15 +148,13 @@ func (g *guiApp) startMonitor(cfg AppConfig) {
 // setBusy 更新按钮可用状态与状态行（可安全地从任意 goroutine 调用）。
 func (g *guiApp) setBusy(busy bool, status string) {
 	fyne.Do(func() {
-		if g.btnApp == nil || g.btnIDE == nil {
+		if g.btnApp == nil {
 			return
 		}
 		if busy {
 			g.btnApp.Disable()
-			g.btnIDE.Disable()
 		} else {
 			g.btnApp.Enable()
-			g.btnIDE.Enable()
 		}
 		if status != "" && g.status != nil {
 			g.status.SetText(status)

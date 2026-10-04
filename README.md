@@ -61,15 +61,16 @@ antigravity-hans --shortcut --ide  # 仅 Antigravity IDE
 
 Fyne 实现的无终端窗口程序（`-H windowsgui` 子系统，不创建控制台）：
 
-- **主页面**：一键启动 Antigravity / Antigravity IDE 动态汉化（与 CLI 同源的 CDP 注入逻辑）。
+- **主页面**：一键启动 Antigravity 动态汉化（与 CLI 同源的 CDP 注入逻辑）。
 - **系统托盘**：显示主窗口、打开 exe 所在目录、开机自启动、退出。
 - **关闭主窗口仅隐藏到托盘**，后台监视持续；退出请使用托盘菜单。
 - **开机自启动仅正式版可用**：以 git tag 构建的 release 版本才能注册（写入 `HKCU\...\Run` 的 `"<exe>" --hidden`）；开发构建（无 tag / 工作区有改动）菜单置灰并拒绝注册，双实例互不冲突。
-- **快捷方式**：同目录存在 GUI exe 时，CLI 的 `--shortcut` 生成的桌面快捷方式会自动指向 GUI（参数 `--app --start --hidden`），双击不再闪现终端，直接静默启动汉化。启动参数同样支持手工传入：`--app` / `--ide` 选择目标，`--start` 启动即开始汉化，`--hidden` 仅托盘不弹窗。
+- **快捷方式**：同目录存在 GUI exe 时，CLI 为 Antigravity 生成的桌面快捷方式会自动指向 GUI（参数 `--start --hidden`），双击不再闪现终端，直接静默启动汉化。启动参数支持手工传入：`--start` 启动即开始汉化，`--hidden` 仅托盘不弹窗。
 
-GUI 构建（本机需 gcc，MSYS2 MinGW64 加入 PATH）：
+GUI 构建与图标生成（本机需 gcc，MSYS2 MinGW64 加入 PATH）：
 
 ```bash
+uv run scripts/render_icon.py              # 渲染图标并编译 Windows syso 资源对象（支持 --variant 1..4）
 uv run scripts/build-gui.py                # 开发构建 -> dist/antigravity-hans-gui-windows-amd64.exe
 uv run scripts/build-gui.py --force-release  # 强制 release（本地验证开机自启；勿用于正式分发）
 ```
