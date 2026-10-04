@@ -3,13 +3,21 @@
 # dependencies = []
 # ///
 # 编译 Antigravity-Hans GUI（Windows 壳，Fyne）：
-# 产物：dist/antigravity-hans-gui-windows-amd64.exe
 #
-# release 判定（决定开机自启是否可用）：
+# 产物命名规则（遵循仓库 dev/release 隔离规范）：
+#   正式版（release）：dist/antigravity-hans-gui-windows-amd64.exe
+#   开发版（dev）：    dist/antigravity-hans-gui-dev-windows-amd64.exe
+#
+# 构建模式判定（决定开机自启是否可用及产物命名）：
 #   当前提交带 git tag（git describe --tags --exact-match HEAD）且工作区干净 -> release；
-#   否则 dev。可用 --force-release 强制（本地验证开机自启用，勿用于正式分发）。
+#   否则 dev。
+#   可用 --dev 强制按开发版构建，或用 --force-release 强制按正式版构建。
 #
-# 用法：uv run scripts/build-gui.py [--force-release] [--show-console]
+# 用法：
+#   uv run scripts/build-gui.py                # 自动判定（有 tag 且干净工作区为 release，否则为 dev）
+#   uv run scripts/build-gui.py --dev          # 显式构建开发版（产物自动带 -dev 后缀）
+#   uv run scripts/build-gui.py --force-release # 强制构建正式版（本地验证开机自启；勿用于正式分发）
+#   uv run scripts/build-gui.py --show-console # 保留控制台窗口（调试排查用）
 
 import argparse
 import os
