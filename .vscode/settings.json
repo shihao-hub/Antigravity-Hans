@@ -1,0 +1,10 @@
+{
+  "go.buildFlags": [
+    "-tags=gui"
+  ],
+  "gopls": {
+    "build.buildFlags": [
+      "-tags=gui"
+    ]
+  }
+}
