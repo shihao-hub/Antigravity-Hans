@@ -35,6 +35,10 @@ func buildTray(g *guiApp) {
 		}
 	})
 
+	checkUpdateItem := fyne.NewMenuItem("检查更新", func() {
+		g.checkUpdateAsync(false)
+	})
+
 	// 开机自启动：仅 release 构建可勾选；dev 构建置灰（逻辑侧同样拒绝注册）
 	autostartItem := fyne.NewMenuItem("开机自启动", nil)
 	autostartItem.Checked = autostartEnabled()
@@ -48,6 +52,7 @@ func buildTray(g *guiApp) {
 	menu := fyne.NewMenu("Antigravity-Hans",
 		showItem,
 		openDirItem,
+		checkUpdateItem,
 		autostartItem,
 		fyne.NewMenuItemSeparator(),
 		quitItem,

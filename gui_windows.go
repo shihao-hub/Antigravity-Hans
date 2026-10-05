@@ -68,6 +68,9 @@ type guiApp struct {
 func main() {
 	opts := parseGUIOptions(os.Args[1:])
 
+	// 启动时抹除上次重命名置换遗留的 .old 文件（旧实例已退出，锁已解开）
+	cleanOldVersions()
+
 	if !acquireSingleInstance() {
 		showMessageBox("Antigravity 汉化工具", "程序已在运行，请查看系统托盘。")
 		return

@@ -32,3 +32,12 @@ func acquireSingleInstance() bool {
 	singleInstanceHandle = h
 	return true
 }
+
+// releaseSingleInstance 主动释放互斥体（在自更新准备启动新实例并退出前调用），
+// 避免新进程在旧进程完全退出前因互斥体碰撞而误判退出。
+func releaseSingleInstance() {
+	if singleInstanceHandle != 0 {
+		_ = windows.CloseHandle(singleInstanceHandle)
+		singleInstanceHandle = 0
+	}
+}
