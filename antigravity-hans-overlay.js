@@ -1,6 +1,6 @@
 (() => {
   if (typeof window === 'undefined') return;
-  const fingerprint = window.__antigravityZhPatchRequestedFingerprint || 'app-2.26.0-20261025-r2';
+  const fingerprint = window.__antigravityZhPatchRequestedFingerprint || 'app-2.26.0-20261026-r1';
   if (window.__antigravityZhPatchInstalled === true && window.__observedDocument === document && window.__antigravityZhPatchFingerprint === fingerprint) return;
   const updating = window.__antigravityZhPatchInstalled === true && window.__observedDocument === document;
   if (typeof window.__antigravityZhPatchCleanup === 'function') window.__antigravityZhPatchCleanup();
@@ -652,6 +652,7 @@
     ['Stop Voice Recording', '停止语音录制'],
     ['Tab Gitignore Access', 'Tab 键访问 .gitignore 排除文件'],
     ['Yes, allow this time', '是，仅允许本次'],
+    ['Dismiss notification', '关闭通知'],
     ['Open in Preview Tab', '在预览标签页中打开'],
     ['No Models Available', '暂无可用模型'],
     ['Permission Settings', '权限设置'],
@@ -859,6 +860,7 @@
     ['Toggle Terminal', '切换终端'],
     ['Fold code block', '折叠代码块'],
     ['Tool Permission', '工具权限'],
+    ['Project deleted', '项目已删除'],
     ['Add MCP Server', '添加 MCP 服务器'],
     ['Skills & Rules', '技能与规则'],
     ['Delete Handler', '删除处理程序'],
@@ -1633,6 +1635,11 @@
     [/(?<=[\u4e00-\u9fff][^\n]*?)(\d+)\s*weeks?\b/gi, '$1 周'],
     [/(?<=[\u4e00-\u9fff][^\n]*?)(\d+)\s*months?\b/gi, '$1 个月'],
     [/(?<=[\u4e00-\u9fff][^\n]*?)(\d+)\s*years?\b/gi, '$1 年'],
+
+    // 模型可用性与公告提示（模型名与日期属于数据，原样保留）
+    [/^([\w .-]+?) is now available on paid Pro and Ultra plans\. Third-party model access will no longer be available on your current plan starting on (.+?)\.$/gi, (_m, model, date) => `${model} 已面向付费 Pro 与 Ultra 套餐开放。自 ${date} 起，您当前使用的套餐将不再提供第三方模型访问。`],
+    [/^([\w .-]+?) is currently available to Ultra and paid Pro plan subscribers\.$/gi, (_m, model) => `${model} 目前仅向 Ultra 及付费 Pro 套餐订阅用户开放。`],
+    [/^GPT-OSS will be removed from Antigravity on (.+?)\.$/gi, (_m, date) => `GPT-OSS 将于 ${date} 从 Antigravity 中移除。`],
   ];
 
   function replacePhrase(value, source, target) {

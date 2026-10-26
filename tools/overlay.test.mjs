@@ -394,3 +394,23 @@ test('unknown project permission layouts and skipped content remain untouched', 
     assert.equal(text.__zh_patched, undefined);
   }
 });
+
+test('2.26.0 normal app model availability tooltips are localized', () => {
+  for (const [input, expected] of [
+    ['Sonnet 5.5 is now available on paid Pro and Ultra plans. Third-party model access will no longer be available on your current plan starting on November 2, 2026.', 'Sonnet 5.5 已面向付费 Pro 与 Ultra 套餐开放。自 November 2, 2026 起，您当前使用的套餐将不再提供第三方模型访问。'],
+    ['Opus 5.5 is now available on paid Pro and Ultra plans. Third-party model access will no longer be available on your current plan starting on November 2, 2026.', 'Opus 5.5 已面向付费 Pro 与 Ultra 套餐开放。自 November 2, 2026 起，您当前使用的套餐将不再提供第三方模型访问。'],
+    ['Gemini 4 Argon is currently available to Ultra and paid Pro plan subscribers.', 'Gemini 4 Argon 目前仅向 Ultra 及付费 Pro 套餐订阅用户开放。'],
+    ['GPT-OSS will be removed from Antigravity on November 2, 2026.', 'GPT-OSS 将于 November 2, 2026 从 Antigravity 中移除。'],
+  ]) {
+    assert.equal(translate(input), expected);
+    // 模型名与日期属于数据，二次翻译必须幂等且原样保留
+    assert.equal(translate(expected), expected);
+  }
+});
+
+test('2.26.0 normal app notification and project deletion toasts are localized', () => {
+  assert.equal(translate('Dismiss notification'), '关闭通知');
+  assert.equal(translate('Project deleted'), '项目已删除');
+  assert.equal(translate('关闭通知'), '关闭通知');
+  assert.equal(translate('项目已删除'), '项目已删除');
+});
