@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+      - v1
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: 质量门禁 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: 配置 Go 环境
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: 格式检查
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "以下文件未格式化，请执行 gofmt -w："
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: 静态检查
+        run: go vet ./...
+
+      - name: 单元测试
+        run: go test -count=1 ./...
+
+      - name: 竞态检查
+        if: runner.os != 'Windows'
+        run: go test -race -count=1 ./...
+
+      - name: 汉化行为回归测试
+        run: node --test tools/overlay.test.mjs
+
+      - name: 词典体检
+        run: node tools/lint-overlay.mjs antigravity-hans-overlay.js
+
+      - name: 依赖漏洞扫描
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...

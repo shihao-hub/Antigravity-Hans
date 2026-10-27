@@ -183,9 +183,9 @@ func (g *guiApp) startMonitor() {
 
 	g.setBusy(true, "正在启动 Antigravity 动态汉化...")
 
-	overlaySource := LoadOverlaySource()
+	overlaySource := LoadOverlaySource(false)
 	go func() {
-		Run(AppNormal, overlaySource) // 阻塞至监视结束（目标退出或启动失败）
+		Run(AppNormal, overlaySource, false) // 阻塞至监视结束（目标退出或启动失败）
 		g.mu.Lock()
 		g.monitoring = false
 		g.mu.Unlock()

@@ -16,4 +16,3 @@ func setSysProcAttr(cmd *exec.Cmd) {
 		Setsid: true, // 创建新的会话，与父进程分离
 	}
 }
-

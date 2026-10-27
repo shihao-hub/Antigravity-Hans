@@ -2,7 +2,7 @@ name: Build & Release
 
 # 发布流程（tag 即 release）：
 # 1. 更新 VERSION 文件并提交
-# 2. 打 tag（与 VERSION 一致，如 v0.4.4）并推送：git tag v0.4.4 && git push origin v0.4.4
+# 2. 打 tag（与 VERSION 一致，如 v0.4.8）并推送：git tag v0.4.8 && git push origin v0.4.8
 # 3. 本工作流自动构建 CLI（三平台）与 Windows GUI 并发布到 GitHub Release
 on:
   push:
@@ -11,12 +11,16 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  quality:
+    uses: ./.github/workflows/ci.yml
+
   build-cli:
     name: 编译 CLI（三平台）
     runs-on: ubuntu-latest
+    needs: quality
 
     steps:
       - name: 校验触发来源
@@ -32,6 +36,7 @@ jobs:
         id: version
         run: |
           VERSION=$(cat VERSION | tr -d '[:space:]')
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || { echo '无效版本号'; exit 1; }
           echo "tag=${VERSION}" >> $GITHUB_OUTPUT
           echo "tag=${{ github.ref_name }} / VERSION 文件=${VERSION}"
 
@@ -83,6 +88,7 @@ jobs:
   build-gui:
     name: 编译 Windows GUI（Fyne）
     runs-on: windows-latest
+    needs: quality
 
     steps:
       - name: 校验触发来源
@@ -135,6 +141,8 @@ jobs:
     needs:
       - build-cli
       - build-gui
+    permissions:
+      contents: write
 
     steps:
       - name: 下载全部产物
@@ -143,8 +151,11 @@ jobs:
           path: dist
           merge-multiple: true
 
-      - name: 查看全部产物
-        run: ls -lh dist/
+      - name: 生成校验证书并查看产物
+        working-directory: dist
+        run: |
+          sha256sum antigravity-hans-macos-arm64 antigravity-hans-macos-amd64 antigravity-hans-windows-amd64.exe antigravity-hans-gui-windows-amd64.exe > SHA256SUMS
+          ls -lh
 
       - name: 发布到 GitHub Releases
         uses: softprops/action-gh-release@v2
@@ -166,7 +177,8 @@ jobs:
             ### Windows GUI 说明
 
             - 双击即开，无终端窗口；主页面一键启动 Antigravity / IDE 动态汉化。
-            - 系统托盘：显示主窗口 / 打开 exe 所在目录 / 开机自启动（仅正式版可用）/ 退出。
+            - 系统托盘：显示主窗口 / 打开 exe 所在目录 / 检查更新 / 开机自启动（仅正式版可用）/ 退出。
+            - 内置 Windows NTFS 重命名置换自更新机制，无感静默置换升级。
             - 关闭主窗口仅隐藏到托盘；退出请使用托盘菜单。
             - 同一目录放置 CLI exe 后，用 `antigravity-hans.exe --shortcut` 生成的快捷方式会自动指向 GUI（双击无终端闪现）。
 
@@ -183,5 +195,6 @@ jobs:
             dist/antigravity-hans-windows-amd64.exe
             dist/antigravity-hans-macos-arm64
             dist/antigravity-hans-macos-amd64
+            dist/SHA256SUMS
           draft: false
           prerelease: false

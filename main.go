@@ -29,7 +29,9 @@ func getBanner() string {
 
 func main() {
 	args := os.Args[1:]
-	if containsArg(args, "--nogui") {
+	// --nogui（快捷方式 / 后台启动）时控制台不可见，必须禁止一切等待标准输入的交互
+	interactive := !containsArg(args, "--nogui")
+	if !interactive {
 		HideConsole()
 	}
 
@@ -42,11 +44,17 @@ func main() {
 		os.Exit(0)
 	}()
 
-	// 加载汉化 JS
-	overlaySource := LoadOverlaySource()
+	// 加载汉化 JS（可执行文件同目录的外部脚本需先通过完整性校验）
+	overlaySource := LoadOverlaySource(containsArg(args, "--trust-external-overlay"))
 
 	// 命令行参数模式（非交互）
 	if len(args) > 0 {
+		// 结束由本工具启动的汉化监视器
+		if containsArg(args, "--stop") {
+			stopMonitors(monitorTargets(args))
+			return
+		}
+
 		// 静态补丁参数
 		if containsArg(args, "--patch") || containsArg(args, "-patch") {
 			runPatchMenu(overlaySource)
@@ -78,10 +86,10 @@ func main() {
 
 		// 动态汉化参数
 		if isIDE {
-			Run(AppIDE, overlaySource)
+			Run(AppIDE, overlaySource, interactive)
 			return
 		} else if isApp {
-			Run(AppNormal, overlaySource)
+			Run(AppNormal, overlaySource, interactive)
 			return
 		}
 
@@ -93,6 +101,8 @@ func main() {
 		fmt.Println("  antigravity-hans --shortcut        # 生成两者的中文快捷方式/包装 App")
 		fmt.Println("  antigravity-hans --shortcut --app  # 生成 Antigravity 中文快捷方式")
 		fmt.Println("  antigravity-hans --shortcut --ide  # 生成 Antigravity IDE 中文快捷方式")
+		fmt.Println("  antigravity-hans --stop            # 结束由本工具启动的汉化监视器")
+		fmt.Println("  antigravity-hans --trust-external-overlay  # 跳过校验，强制加载同目录外部汉化脚本")
 		return
 	}
 
@@ -129,11 +139,11 @@ func runMainMenu(overlaySource string) {
 		switch choice {
 		case "1":
 			fmt.Println("\n正在启动 Antigravity 动态汉化...")
-			Run(AppNormal, overlaySource)
+			Run(AppNormal, overlaySource, true)
 			pressEnterToContinue(reader)
 		case "2":
 			fmt.Println("\n正在启动 Antigravity IDE 动态汉化...")
-			Run(AppIDE, overlaySource)
+			Run(AppIDE, overlaySource, true)
 			pressEnterToContinue(reader)
 		case "3":
 			runPatchMenu(overlaySource)
@@ -255,13 +265,4 @@ func pressEnterToContinue(reader *bufio.Reader) {
 
 func clearScreen() {
 	fmt.Print("\033[H\033[2J")
-}
-
-func containsArg(args []string, s string) bool {
-	for _, a := range args {
-		if a == s {
-			return true
-		}
-	}
-	return false
 }

@@ -29,6 +29,10 @@ func GetPathsFromRegistry(appName, exeName string) []string {
 			continue
 		}
 		val = strings.Trim(val, `'"`)
+		// 只接受与目标可执行文件同名的路径：注册表内容不受本工具控制
+		if !strings.EqualFold(filepath.Base(val), exeName) {
+			continue
+		}
 		if _, err := os.Stat(val); err == nil {
 			found[val] = struct{}{}
 		}
@@ -79,7 +83,8 @@ func GetPathsFromRegistry(appName, exeName string) []string {
 			if icon, _, err := sk.GetStringValue("DisplayIcon"); err == nil && icon != "" {
 				parts := strings.SplitN(icon, ",", 2)
 				iconPath := strings.Trim(parts[0], `'"`)
-				if strings.HasSuffix(strings.ToLower(iconPath), ".exe") {
+				if strings.HasSuffix(strings.ToLower(iconPath), ".exe") &&
+					strings.EqualFold(filepath.Base(iconPath), exeName) {
 					if _, err := os.Stat(iconPath); err == nil {
 						found[iconPath] = struct{}{}
 					}

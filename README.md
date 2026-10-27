@@ -2,7 +2,7 @@
 
 专为 **Google Antigravity** 及 **Antigravity IDE** 开发的中文汉化工具。
 
-> **适配版本**： **Antigravity `2.10.0`** 与 **Antigravity IDE `2.5.5`** 。
+> **适配版本**：**Antigravity `2.26.0`** 与 **Antigravity IDE `2.5.5`**。
 
 ---
 
@@ -53,6 +53,10 @@ antigravity-hans --patch       # 静态补丁管理 (仅支持 IDE)
 antigravity-hans --shortcut        # 为两者生成快捷方式
 antigravity-hans --shortcut --app  # 仅 Antigravity
 antigravity-hans --shortcut --ide  # 仅 Antigravity IDE
+
+# 维护
+antigravity-hans --stop                    # 结束由本工具启动的汉化监视器
+antigravity-hans --trust-external-overlay  # 显式信任同目录外部汉化脚本（类型与大小限制仍生效）
 ```
 
 ---
@@ -79,14 +83,25 @@ uv run scripts/build-gui.py --force-release  # 强制 release（本地验证开�
 
 1. **动态汉化（推荐）**：
    - 支持 Antigravity 及 Antigravity IDE。
-   - 基于 CDP 远程调试协议无感注入，不修改任何本地二进制与文件，安全无痕。
+   - 通过 CDP 动态翻译界面，保留应用安装资源；注入状态随应用页面关闭而消失。
    - 可通过 `--shortcut` 参数一键生成桌面快捷方式，日常双击即可自动启动汉化。
 2. **静态补丁（仅支持 Antigravity IDE）**：
    - 直接修改本地 IDE 安装包资源并修复校验和，一劳永逸，支持随时一键还原。
 
 ---
 
+## 常见问题
+
+- **macOS 双击「中文」图标后没有汉化**：监视进程日志位于 `~/Library/Logs/antigravity-hans.log`，先看该文件。
+- **提示汉化监视器已在运行**：说明上一次的监视器仍在工作，可用 `antigravity-hans --stop` 结束它。
+- **提示退出取消或超时**：仅在没有可复用调试端口时请求正常退出（macOS 用 AppleScript，Windows 用不带 `/F` 的 `taskkill`）。取消、拒绝或超时会中止重启，不会强杀应用；请保存内容并手动退出后重试。
+- **更新后仍使用旧词库**：先结束旧监视器；如果日志提示旧脚本没有清理入口，重新加载当前应用窗口后再启动新版监视器。
+
+---
+
 ## 源码编译
+
+需要 **Go 1.27.3 或更高版本**（`go.mod` 已声明，旧工具链会自动下载对应版本）。
 
 ```bash
 ./build.sh                       # CLI（macOS/Windows 交叉编译）
@@ -97,14 +112,29 @@ uv run scripts/build-gui.py      # Windows GUI（Fyne，需 gcc）
 
 ```bash
 # 1. 更新 VERSION 并提交；2. 打 tag 并推送（tag 即 release）
-git tag v0.4.4 && git push origin v0.4.4
+git tag v0.4.8 && git push origin v0.4.8
 ```
 
 推送 `v*` tag 后，GitHub Actions 自动构建 CLI（三平台）与 Windows GUI（release 模式）并发布 Release。
 
 ---
 
+## 参与贡献
+
+由于学业繁忙，更新可能不够及时，敬请谅解。欢迎提交 PR 补充词条、适配新版本或修复问题。
+
+新版本适配与词条维护流程见 [适配技能](.github/skills/antigravity-hans-adaptation/SKILL.md)，提交前请运行词库 lint 与回归测试。
+
+---
+
 ## 致谢
 
-- 汉化词库参考：[antigravity-chinese](https://github.com/kdczyz/antigravity-chinese)
+- 感谢所有为本项目提交代码、文档、测试、Issue 的贡献者。
 
+<a href="https://github.com/yuexps/Antigravity-Hans/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=yuexps/Antigravity-Hans" alt="contributors" />
+</a>
+
+---
+
+- 汉化词库参考：[antigravity-chinese](https://github.com/kdczyz/antigravity-chinese)

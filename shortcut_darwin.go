@@ -29,11 +29,12 @@ func CreateChineseShortcut(cfg AppConfig) error {
 	// 确定应用程序目录
 	appsDir := "/Applications"
 	// 检查 /Applications 是否可写，若不可写则使用用户目录下的 Applications
-	testPath := filepath.Join(appsDir, ".tmp_write_test")
-	if err := os.WriteFile(testPath, []byte("test"), 0644); err != nil {
+	probe, err := os.CreateTemp(appsDir, ".agy-hans-write-*")
+	if err != nil {
 		appsDir = filepath.Join(homeDir, "Applications")
 	} else {
-		_ = os.Remove(testPath)
+		_ = probe.Close()
+		_ = os.Remove(probe.Name())
 	}
 	wrapperAppName := cfg.Name + " 中文.app"
 	wrapperAppPath := filepath.Join(appsDir, wrapperAppName)
@@ -43,10 +44,20 @@ func CreateChineseShortcut(cfg AppConfig) error {
 	macosDir := filepath.Join(contentsDir, "MacOS")
 	resourcesDir := filepath.Join(contentsDir, "Resources")
 
-	if err := os.MkdirAll(macosDir, 0755); err != nil {
+	if err := os.MkdirAll(appsDir, 0755); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(resourcesDir, 0755); err != nil {
+	root, err := os.OpenRoot(appsDir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	macosRel, _ := filepath.Rel(appsDir, macosDir)
+	resourcesRel, _ := filepath.Rel(appsDir, resourcesDir)
+	if err := ensureRootDirectory(root, macosRel); err != nil {
+		return err
+	}
+	if err := ensureRootDirectory(root, resourcesRel); err != nil {
 		return err
 	}
 
@@ -70,7 +81,8 @@ func CreateChineseShortcut(cfg AppConfig) error {
 </dict>
 </plist>
 `
-	if err := os.WriteFile(filepath.Join(contentsDir, "Info.plist"), []byte(infoPlistContent), 0644); err != nil {
+	infoRel, _ := filepath.Rel(appsDir, filepath.Join(contentsDir, "Info.plist"))
+	if err := writeRootFileAtomic(root, infoRel, []byte(infoPlistContent), 0644); err != nil {
 		return err
 	}
 
@@ -90,33 +102,43 @@ func CreateChineseShortcut(cfg AppConfig) error {
 	if strings.Contains(strings.ToLower(cfg.Name), "ide") {
 		arg = "--ide"
 	}
-	launcherContent := fmt.Sprintf(`#!/bin/bash
-# 启动后台汉化监视进程
-nohup "%s" %s --nogui > /dev/null 2>&1 &
-# 启动原版应用
-open "%s"
-`, selfExeAbs, arg, originalAppPath)
-
+	// 监视进程的日志落到 ~/Library/Logs，便于排查“没有汉化”这类静默失败
+	launcherContent := macLauncherScript(selfExeAbs, arg)
 	launcherPath := filepath.Join(macosDir, "launcher")
-	if err := os.WriteFile(launcherPath, []byte(launcherContent), 0755); err != nil {
+	launcherRel, _ := filepath.Rel(appsDir, launcherPath)
+	if err := writeRootFileAtomic(root, launcherRel, []byte(launcherContent), 0755); err != nil {
 		return err
 	}
 
-	// 4. 复制 .icns 图标
+	// 4. 复制图标；写入端也不跟随预置的符号链接。
 	if originalAppPath != "" {
 		origResources := filepath.Join(originalAppPath, "Contents", "Resources")
 		if files, err := os.ReadDir(origResources); err == nil {
 			for _, file := range files {
 				if filepath.Ext(file.Name()) == ".icns" {
-					srcFile := filepath.Join(origResources, file.Name())
-					dstFile := filepath.Join(resourcesDir, "icon.icns")
-					_ = copyFile(srcFile, dstFile)
+					data, _, err := readRegularFile(filepath.Join(origResources, file.Name()), 16<<20)
+					if err == nil {
+						err = writeRootFileAtomic(root, filepath.Join(resourcesRel, "icon.icns"), data, 0644)
+					}
+					if err != nil {
+						fmt.Printf("[提示] 未能复制快捷方式图标: %v\n", err)
+					}
 					break
 				}
 			}
 		}
 	}
-
 	fmt.Printf("[成功] 已在应用程序目录创建包装应用: %s\n", wrapperAppPath)
 	return nil
+}
+
+func macLauncherScript(selfExe, arg string) string {
+	return fmt.Sprintf(`#!/bin/bash
+# 启动后台汉化监视进程，日志写入 ~/Library/Logs/antigravity-hans.log
+LOG_DIR="$HOME/Library/Logs"
+LOG_FILE="$LOG_DIR/antigravity-hans.log"
+mkdir -p "$LOG_DIR"
+nohup %s %s --nogui >> "$LOG_FILE" 2>&1 &
+# 汉化监视器负责启动原应用，避免 open 与调试模式启动争抢单实例锁。
+`, shellQuote(selfExe), shellQuote(arg))
 }

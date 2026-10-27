@@ -37,17 +37,17 @@ echo ""
 
 # macOS ARM64 (Apple Silicon)
 echo ">>> [1/3] macOS ARM64 (Apple Silicon)..."
-GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.Version=$VERSION" -o "$DIST_DIR/antigravity-hans-macos-arm64" .
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w -X main.Version=$VERSION" -o "$DIST_DIR/antigravity-hans-macos-arm64" .
 echo "    ✅ $DIST_DIR/antigravity-hans-macos-arm64"
 
 # macOS AMD64 (Intel)
 echo ">>> [2/3] macOS AMD64 (Intel Mac)..."
-GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$VERSION" -o "$DIST_DIR/antigravity-hans-macos-amd64" .
+CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$VERSION" -o "$DIST_DIR/antigravity-hans-macos-amd64" .
 echo "    ✅ $DIST_DIR/antigravity-hans-macos-amd64"
 
 # Windows AMD64
 echo ">>> [3/3] Windows AMD64..."
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$VERSION" -o "$DIST_DIR/antigravity-hans-windows-amd64.exe" .
+CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -X main.Version=$VERSION" -o "$DIST_DIR/antigravity-hans-windows-amd64.exe" .
 echo "    ✅ $DIST_DIR/antigravity-hans-windows-amd64.exe"
 
 echo ""

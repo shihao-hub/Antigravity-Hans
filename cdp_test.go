@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"unicode/utf8"
+)
 
 func TestIsTargetPageIDEWorkbenches(t *testing.T) {
 	tests := []struct {
@@ -42,6 +46,34 @@ func TestIsTargetPageAppNormal(t *testing.T) {
 				t.Fatalf("isTargetPage(%q, %q) = %v, want %v", tt.url, AppNormal.Name, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTruncateRunes(t *testing.T) {
+	short := "Antigravity"
+	if got := truncateRunes(short, 100); got != short {
+		t.Fatalf("未超长的字符串不应被修改: %q", got)
+	}
+
+	// 200 个中文字符：按字节截断会产生非法 UTF-8，按 rune 截断不会
+	long := strings.Repeat("汉", 200)
+	got := truncateRunes(long, 100)
+	if !utf8.ValidString(got) {
+		t.Fatalf("截断结果不是合法的 UTF-8: %q", got)
+	}
+	if runes := []rune(got); len(runes) != 100 {
+		t.Fatalf("截断后应为 100 个字符，实际 %d", len(runes))
+	}
+	if !strings.HasSuffix(got, "...") {
+		t.Fatalf("截断结果应以省略号结尾: %q", got)
+	}
+}
+
+func TestGetTargetTitleKeepsValidUTF8(t *testing.T) {
+	title := strings.Repeat("汉", 150)
+	got := getTargetTitle(title, "")
+	if !utf8.ValidString(got) {
+		t.Fatalf("标题截断后不是合法 UTF-8: %q", got)
 	}
 }
 

@@ -93,7 +93,12 @@ func InstallPatch(inst PatchAppInstance, overlaySource string) bool {
 	testFile := filepath.Join(workbenchDir, ".write_test")
 	if err := os.WriteFile(testFile, []byte("test"), 0644); err != nil {
 		fmt.Println("[错误] 目录写入权限不足，无法安装补丁。")
-		fmt.Println("       如果应用安装在系统敏感目录（如 Program Files），请尝试“以管理员身份运行”此程序。")
+		if IsMac {
+			fmt.Println("       若该 .app 由安装包部署在 /Applications 且属主为 root，请用 sudo 运行本工具；")
+			fmt.Println("       或者直接改用动态汉化（无需改动任何文件）。")
+		} else {
+			fmt.Println("       如果应用安装在系统敏感目录（如 Program Files），请尝试“以管理员身份运行”此程序。")
+		}
 		return false
 	}
 	os.Remove(testFile)
@@ -113,6 +118,8 @@ func InstallPatch(inst PatchAppInstance, overlaySource string) bool {
 	fmt.Println("[提示] 识别为 VS Code 架构，将通过修改 HTML 注入补丁...")
 
 	// 写出 overlay JS 文件
+	// 权限保持 0644：若补丁是以 sudo 安装的，文件属主为 root，
+	// 仍须保证普通用户身份启动的 IDE 能读取它（收窄到 0600 会导致界面异常）。
 	overlayDest := filepath.Join(workbenchDir, "antigravity-hans-overlay.js")
 	if err := os.WriteFile(overlayDest, []byte(overlaySource), 0644); err != nil {
 		fmt.Printf("[错误] 写入补丁文件失败: %v\n", err)
