@@ -8,6 +8,7 @@ package main
 
 import (
 	_ "embed"
+	"fmt"
 	"os"
 	"sync"
 	"unsafe"
@@ -23,6 +24,19 @@ import (
 //
 //go:embed gui_assets/appicon.png
 var appIconPNG []byte
+
+// appIconDevPNG 开发版窗口与应用图标（Go 地鼠图标，256×256 PNG，构建期嵌入）。
+//
+//go:embed gui_assets/appicon-dev.png
+var appIconDevPNG []byte
+
+// getAppIconPNG 返回当前构建模式对应的应用图标字节切片。
+func getAppIconPNG() []byte {
+	if !isReleaseBuild() && len(appIconDevPNG) > 0 {
+		return appIconDevPNG
+	}
+	return appIconPNG
+}
 
 // Version 与 ReleaseMode 由构建脚本通过
 // -ldflags "-X main.Version=... -X main.ReleaseMode=..." 注入；
@@ -65,7 +79,38 @@ type guiApp struct {
 	monitoring bool
 }
 
+// handleVersionFlag 处理版本查询参数（--version / -v / version），契约化输出后退出。
+// 依附调用方控制台输出；若无控制台（如双击带参运行）则回退原生消息框。
+func handleVersionFlag(args []string) bool {
+	for _, a := range args {
+		if a == "--version" || a == "-v" || a == "version" {
+			kernel32 := windows.NewLazySystemDLL("kernel32.dll")
+			proc := kernel32.NewProc("AttachConsole")
+			r, _, _ := proc.Call(uintptr(^uint32(0))) // ATTACH_PARENT_PROCESS
+			if r != 0 {
+				stdoutHandle, err := windows.GetStdHandle(windows.STD_OUTPUT_HANDLE)
+				if err == nil && stdoutHandle != 0 && stdoutHandle != windows.InvalidHandle {
+					os.Stdout = os.NewFile(uintptr(stdoutHandle), "/dev/stdout")
+					msg := fmt.Sprintf("Antigravity-Hans GUI %s (mode: %s)\n", Version, ReleaseMode)
+					msg16, _ := windows.UTF16FromString(msg)
+					var written uint32
+					_ = windows.WriteConsole(stdoutHandle, &msg16[0], uint32(len(msg16)-1), &written, nil)
+				}
+				fmt.Printf("Antigravity-Hans GUI %s (mode: %s)\n", Version, ReleaseMode)
+			} else {
+				showMessageBox("Antigravity 汉化工具", fmt.Sprintf("版本: %s\n构建模式: %s", Version, ReleaseMode))
+			}
+			return true
+		}
+	}
+	return false
+}
+
 func main() {
+	if handleVersionFlag(os.Args[1:]) {
+		return
+	}
+
 	opts := parseGUIOptions(os.Args[1:])
 
 	// 启动时抹除上次重命名置换遗留的 .old 文件（旧实例已退出，锁已解开）
@@ -79,8 +124,8 @@ func main() {
 	g := &guiApp{}
 	g.app = app.NewWithID("antigravity-hans-gui")
 
-	// 设置应用与窗口图标（消除无图标问题，展示专属品牌标识）
-	iconRes := fyne.NewStaticResource("appicon.png", appIconPNG)
+	// 设置应用与窗口图标（dev 模式使用 Go 地鼠图标，release 使用专属品牌图标）
+	iconRes := fyne.NewStaticResource("appicon.png", getAppIconPNG())
 	g.app.SetIcon(iconRes)
 
 	g.win = g.app.NewWindow("Antigravity 汉化工具")

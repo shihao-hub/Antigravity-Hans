@@ -106,10 +106,13 @@ jobs:
         with:
           msystem: MINGW64
           update: false
+          path-type: inherit
           install: mingw-w64-x86_64-gcc
 
       - name: 编译 Windows GUI（release 模式）
         shell: msys2 {0}
+        env:
+          CGO_ENABLED: 1
         run: |
           mkdir -p dist
           go build -tags gui -trimpath -buildvcs=false \

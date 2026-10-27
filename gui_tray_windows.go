@@ -19,13 +19,26 @@ import (
 //go:embed gui_assets/tray.png
 var trayIconPNG []byte
 
+// trayIconDevPNG 开发版托盘图标（由 icon-dev.ico 提取的 64×64 PNG，构建期嵌入）。
+//
+//go:embed gui_assets/tray-dev.png
+var trayIconDevPNG []byte
+
+// getTrayIconPNG 返回当前构建模式对应的托盘图标字节切片。
+func getTrayIconPNG() []byte {
+	if !isReleaseBuild() && len(trayIconDevPNG) > 0 {
+		return trayIconDevPNG
+	}
+	return trayIconPNG
+}
+
 // buildTray 创建系统托盘图标与菜单。
 func buildTray(g *guiApp) {
 	desk, ok := g.app.(desktop.App)
 	if !ok {
 		return // Windows 桌面驱动必然支持；防御性兜底
 	}
-	desk.SetSystemTrayIcon(fyne.NewStaticResource("tray.png", trayIconPNG))
+	desk.SetSystemTrayIcon(fyne.NewStaticResource("tray.png", getTrayIconPNG()))
 	desk.SetSystemTrayWindow(g.win) // 左键点击托盘图标显示主窗口
 
 	showItem := fyne.NewMenuItem("显示主窗口", func() { g.showMainWindow() })

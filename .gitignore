@@ -4,3 +4,7 @@ dist/
 
 # 内嵌的 overlay.js 副本（由 build.sh 自动同步，无需提交）
 antigravity-hans-overlay.js
+
+# 构建期临时状态
+.rsrc_target
+__pycache__/

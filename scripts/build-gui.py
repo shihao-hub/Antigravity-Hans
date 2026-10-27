@@ -8,6 +8,10 @@
 #   正式版（release）：dist/antigravity-hans-gui-windows-amd64.exe
 #   开发版（dev）：    dist/antigravity-hans-gui-dev-windows-amd64.exe
 #
+# 图标使用规则：
+#   正式版（release）：icon.ico（专属品牌图标）
+#   开发版（dev）：    icon-dev.ico（Go 官方地鼠图标，与正式版直观区分）
+#
 # 构建模式判定（决定开机自启是否可用及产物命名）：
 #   当前提交带 git tag（git describe --tags --exact-match HEAD）且工作区干净 -> release；
 #   否则 dev。
@@ -68,20 +72,53 @@ def detect_release(force_release: bool, force_dev: bool = False) -> tuple[bool, 
     return True, f"命中 tag {tag}"
 
 
-def ensure_icon() -> None:
+def ensure_icon(release: bool) -> None:
     syso = PROJECT_ROOT / "rsrc_windows_amd64.syso"
-    ico = PROJECT_ROOT / "icon.ico"
-    if syso.exists() and ico.exists() and syso.stat().st_mtime >= ico.stat().st_mtime:
-        return
+    target_ico_name = "icon.ico" if release else "icon-dev.ico"
+    ico = PROJECT_ROOT / target_ico_name
+    marker = PROJECT_ROOT / ".rsrc_target"
+
+    # 开发版若缺失 icon-dev.ico，自动从父仓库或同级模块获取 Go 官方地鼠图标
+    if not release and not ico.exists():
+        gopher_candidates = [
+            PROJECT_ROOT.parent.parent / "docs" / "assets" / "projects" / "go_projects" / "go-default.ico",
+            PROJECT_ROOT.parent.parent / "go_projects" / "liteconf" / "cmd" / "liteconf" / "icon.ico",
+        ]
+        for candidate in gopher_candidates:
+            if candidate.exists():
+                print(f"[提示] 从 {candidate} 复制 Go 地鼠图标为 {ico.name}")
+                shutil.copy2(candidate, ico)
+                break
+
     if not ico.exists():
-        print("[警告] 未找到 icon.ico 与 rsrc_windows_amd64.syso，产物将不带图标")
+        print(f"[警告] 未找到 {target_ico_name} 与 {syso.name}，产物将不带图标")
         return
+
+    # 检查是否需要重新生成 syso：
+    # 1. syso 文件不存在
+    # 2. 上次生成记录的目标图标与当前不同（例如在 dev 和 release 之间切换）
+    # 3. ico 文件修改时间晚于 syso
+    last_target = marker.read_text(encoding="utf-8").strip() if marker.exists() else ""
+    needs_rebuild = (
+        not syso.exists()
+        or last_target != ico.name
+        or syso.stat().st_mtime < ico.stat().st_mtime
+    )
+
+    if not needs_rebuild:
+        return
+
     rsrc = shutil.which("rsrc") or str(Path.home() / "go" / "bin" / "rsrc.exe")
     if not Path(rsrc).exists():
         print("[警告] 未找到 rsrc 工具，无法生成 syso，产物将不带图标")
         return
-    print(f"[提示] 生成 Windows 资源对象：{syso.name}")
+
+    print(f"[提示] 使用 {ico.name} 生成 Windows 资源对象：{syso.name}")
     run([rsrc, "-ico", str(ico), "-o", str(syso)], PROJECT_ROOT)
+    try:
+        marker.write_text(ico.name, encoding="utf-8")
+    except OSError:
+        pass
 
 
 def main() -> int:
@@ -95,8 +132,11 @@ def main() -> int:
         env = os.environ.copy()
         env.update({"CGO_ENABLED": "1", "GOOS": "windows", "GOARCH": "amd64"})
         if sys.platform == "win32":
-            if shutil.which("gcc") is None:
+            gcc_path = shutil.which("gcc")
+            if gcc_path is None:
                 raise RuntimeError("未找到 gcc：Fyne Windows 构建需要 C 编译器（推荐 MSYS2 MinGW64 并加入 PATH）")
+            gcc_dir = str(Path(gcc_path).resolve().parent)
+            env["PATH"] = gcc_dir + os.pathsep + env.get("PATH", "")
         else:
             cc = shutil.which("x86_64-w64-mingw32-gcc")
             if cc is None:
@@ -119,7 +159,7 @@ def main() -> int:
         if mode == "dev" and not version.endswith("-dev"):
             version += "-dev"
 
-        ensure_icon()
+        ensure_icon(release)
 
         DIST_DIR.mkdir(parents=True, exist_ok=True)
         out_name = "antigravity-hans-gui-windows-amd64.exe" if release else "antigravity-hans-gui-dev-windows-amd64.exe"
